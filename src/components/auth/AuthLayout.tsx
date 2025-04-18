@@ -15,7 +15,8 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="flex-grow justify-center px-4 py-8"
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 32 }}
           keyboardShouldPersistTaps="handled"
         >
           <View className="mb-8">
