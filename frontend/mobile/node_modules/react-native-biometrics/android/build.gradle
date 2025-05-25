@@ -1,0 +1,48 @@
+apply plugin: 'com.android.library'
+
+description = 'react-native-biometrics'
+
+buildscript {
+    // The Android Gradle plugin is only required when opening the android folder stand-alone.
+    // This avoids unnecessary downloads and potential conflicts when the library is included as a
+    // module dependency in an application project.
+    if (project == rootProject) {
+        repositories {
+            mavenCentral()
+            maven { url "$rootDir/../node_modules/react-native/android" }
+            google()
+        }
+
+        dependencies {
+            classpath("com.android.tools.build:gradle:3.6.2")
+
+        }
+    }
+}
+
+def safeExtGet(prop, fallback) {
+    rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
+}
+
+android {
+    compileSdkVersion safeExtGet('compileSdkVersion', 29)
+
+    defaultConfig {
+        minSdkVersion safeExtGet('minSdkVersion', 16)
+        targetSdkVersion safeExtGet('targetSdkVersion', 29)
+    }
+    lintOptions {
+        abortOnError false
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url "$rootDir/../node_modules/react-native/android" }
+    google()
+}
+
+dependencies {
+    implementation 'androidx.biometric:biometric:1.1.0'
+    implementation 'com.facebook.react:react-native:+'
+}
