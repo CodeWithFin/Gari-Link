@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import { HomeScreenNavigationProp } from '../../types/navigation';
@@ -27,6 +28,7 @@ const HomeScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { width } = useWindowDimensions();
   
   const [refreshing, setRefreshing] = useState(false);
@@ -102,8 +104,25 @@ const HomeScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
+    try {
+      await loadData();
+      showToast({
+        message: "Dashboard refreshed",
+        type: "success",
+        duration: 1500,
+        position: "bottom"
+      });
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      showToast({
+        message: "Failed to refresh dashboard",
+        type: "error",
+        duration: 2000,
+        position: "bottom"
+      });
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   if (!user) {
@@ -115,7 +134,7 @@ const HomeScreen: React.FC = () => {
           </Text>
           <Button
             title="Sign In"
-            onPress={() => navigation.navigate('HomeTab', { screen: 'SignIn' })}
+            onPress={() => navigation.navigate('ProfileTab', { screen: 'UserProfile' })}
             type="primary"
             style={{ marginTop: 20 }}
           />

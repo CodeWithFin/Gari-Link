@@ -14,6 +14,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import { VehicleScreenNavigationProp, VehicleStackParamList } from '../../types/navigation';
 import InputField from '../../components/InputField';
 import Button from '../../components/Button';
@@ -50,6 +51,7 @@ type AddReminderScreenRouteProp = RouteProp<
 
 const AddReminderScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const navigation = useNavigation<VehicleScreenNavigationProp>();
   const route = useRoute<AddReminderScreenRouteProp>();
   const { vehicleId } = route.params;
@@ -92,17 +94,27 @@ const AddReminderScreen: React.FC = () => {
         if (vehicleData) {
           setVehicle(vehicleData);
         } else {
-          Alert.alert('Error', 'Vehicle not found');
+          showToast({
+            message: 'Vehicle not found',
+            type: 'error',
+            position: 'top',
+            duration: 3000
+          });
           navigation.goBack();
         }
       } catch (error) {
         console.error('Error loading vehicle:', error);
-        Alert.alert('Error', 'Failed to load vehicle data');
+        showToast({
+          message: 'Failed to load vehicle data',
+          type: 'error',
+          position: 'top',
+          duration: 3000
+        });
       }
     };
 
     loadVehicle();
-  }, [vehicleId, navigation]);
+  }, [vehicleId, navigation, showToast]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -172,7 +184,12 @@ const AddReminderScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      Alert.alert('Error', 'Please correct the errors in the form');
+      showToast({
+        message: 'Please correct the errors in the form',
+        type: 'error',
+        position: 'top',
+        duration: 3000
+      });
       return;
     }
     
@@ -198,19 +215,25 @@ const AddReminderScreen: React.FC = () => {
       
       await ReminderService.addReminder(newReminder);
       
-      Alert.alert(
-        'Success',
-        'Reminder added successfully',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('VehicleDetails', { vehicleId }),
-          },
-        ]
-      );
+      showToast({
+        message: 'Reminder added successfully',
+        type: 'success',
+        position: 'top',
+        duration: 3000
+      });
+      
+      // Navigate back to vehicle details after a short delay
+      setTimeout(() => {
+        navigation.navigate('VehicleDetails', { vehicleId });
+      }, 1000);
     } catch (error) {
       console.error('Error adding reminder:', error);
-      Alert.alert('Error', 'Failed to add reminder. Please try again.');
+      showToast({
+        message: 'Failed to add reminder. Please try again.',
+        type: 'error',
+        position: 'top',
+        duration: 3000
+      });
     } finally {
       setIsSubmitting(false);
     }

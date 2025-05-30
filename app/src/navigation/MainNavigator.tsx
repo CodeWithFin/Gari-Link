@@ -1,23 +1,28 @@
 import React, { lazy, Suspense } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, Theme as NavigationTheme } from '@react-navigation/native';
 import { MainTabParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Platform } from 'react-native';
 
-// Lazy load stack navigators to avoid circular dependencies
-const HomeStack = lazy(() => import('./HomeStack'));
-const VehicleStack = lazy(() => import('./VehicleStack'));
-const ServicesStack = lazy(() => import('./ServicesStack'));
-const CommunityStack = lazy(() => import('./CommunityStack'));
-const ProfileStack = lazy(() => import('./ProfileStack'));
+// Preload the stack navigators to avoid circular dependencies
+import HomeStack from './HomeStack';
+import VehicleStack from './VehicleStack';
+import ServicesStack from './ServicesStack';
+import CommunityStack from './CommunityStack';
+import ProfileStack from './ProfileStack';
 
 // Loading component for Suspense fallback
 const LoadingScreen = () => {
   const { theme } = useTheme();
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }}>
+    <View style={{ 
+      flex: 1, 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      backgroundColor: theme.colors.background 
+    }}>
       <ActivityIndicator size="large" color={theme.colors.primary} />
     </View>
   );
@@ -28,24 +33,23 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const MainNavigator: React.FC = () => {
   const { theme } = useTheme();
 
+  // Create a navigation theme object that matches React Navigation's expected format
+  const navigationTheme: NavigationTheme = {
+    ...DefaultTheme,
+    dark: theme.dark,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: theme.colors.primary,
+      background: theme.colors.background,
+      card: theme.colors.card,
+      text: theme.colors.text,
+      border: theme.colors.border,
+      notification: theme.colors.notification,
+    }
+  };
+
   return (
-    <NavigationContainer theme={{
-      dark: theme.dark,
-      colors: {
-        primary: theme.colors.primary,
-        background: theme.colors.background,
-        card: theme.colors.card,
-        text: theme.colors.text,
-        border: theme.colors.border,
-        notification: theme.colors.notification,
-      },
-      fonts: {
-        regular: { fontFamily: 'System', fontWeight: '400' },
-        medium: { fontFamily: 'System', fontWeight: '500' },
-        bold: { fontFamily: 'System', fontWeight: '700' },
-        heavy: { fontFamily: 'System', fontWeight: '900' }
-      }
-    }}>
+    <NavigationContainer theme={navigationTheme}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           tabBarIcon: ({ focused, color, size }) => {
@@ -66,10 +70,29 @@ const MainNavigator: React.FC = () => {
             return <Ionicons name={iconName} size={size} color={color} />;
           },
           tabBarActiveTintColor: theme.colors.primary,
-          tabBarInactiveTintColor: theme.colors.text,
+          tabBarInactiveTintColor: theme.colors.textSecondary,
           tabBarStyle: {
             backgroundColor: theme.colors.card,
             borderTopColor: theme.colors.border,
+            height: 60,
+            paddingBottom: 8,
+            paddingTop: 8,
+            ...Platform.select({
+              ios: {
+                shadowColor: theme.dark ? '#000' : theme.colors.primary,
+                shadowOffset: { width: 0, height: -3 },
+                shadowOpacity: theme.dark ? 0.2 : 0.1,
+                shadowRadius: 5,
+              },
+              android: {
+                elevation: theme.elevation.medium,
+              },
+            }),
+          },
+          tabBarLabelStyle: {
+            fontFamily: theme.fonts.medium.fontFamily,
+            fontWeight: theme.fonts.medium.fontWeight as '400' | '500' | 'bold',
+            fontSize: 12,
           },
           headerShown: false,
         })}
@@ -77,53 +100,28 @@ const MainNavigator: React.FC = () => {
         <Tab.Screen 
           name="HomeTab" 
           options={{ tabBarLabel: 'Home' }}
-        >
-          {() => (
-            <Suspense fallback={<LoadingScreen />}>
-              <HomeStack />
-            </Suspense>
-          )}
-        </Tab.Screen>
+          component={HomeStack}
+        />
         <Tab.Screen 
           name="VehicleTab" 
           options={{ tabBarLabel: 'My Vehicle' }}
-        >
-          {() => (
-            <Suspense fallback={<LoadingScreen />}>
-              <VehicleStack />
-            </Suspense>
-          )}
-        </Tab.Screen>
+          component={VehicleStack}
+        />
         <Tab.Screen 
           name="ServicesTab" 
           options={{ tabBarLabel: 'Services' }}
-        >
-          {() => (
-            <Suspense fallback={<LoadingScreen />}>
-              <ServicesStack />
-            </Suspense>
-          )}
-        </Tab.Screen>
+          component={ServicesStack}
+        />
         <Tab.Screen 
           name="CommunityTab" 
           options={{ tabBarLabel: 'Community' }}
-        >
-          {() => (
-            <Suspense fallback={<LoadingScreen />}>
-              <CommunityStack />
-            </Suspense>
-          )}
-        </Tab.Screen>
+          component={CommunityStack}
+        />
         <Tab.Screen 
           name="ProfileTab" 
           options={{ tabBarLabel: 'Profile' }}
-        >
-          {() => (
-            <Suspense fallback={<LoadingScreen />}>
-              <ProfileStack />
-            </Suspense>
-          )}
-        </Tab.Screen>
+          component={ProfileStack}
+        />
       </Tab.Navigator>
     </NavigationContainer>
   );

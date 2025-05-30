@@ -13,6 +13,7 @@ import {
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
+import { useToast } from '../../context/ToastContext';
 import { VehicleStackParamList, VehicleScreenNavigationProp } from '../../types/navigation';
 import { Vehicle, MaintenanceRecord, Reminder } from '../../types/models';
 import { VehicleService } from '../../services/VehicleService';
@@ -25,6 +26,7 @@ type VehicleDetailsRouteProp = RouteProp<VehicleStackParamList, 'VehicleDetails'
 
 const VehicleDetailsScreen: React.FC = () => {
   const { theme } = useTheme();
+  const { showToast } = useToast();
   const navigation = useNavigation<VehicleScreenNavigationProp>();
   const route = useRoute<VehicleDetailsRouteProp>();
   const { vehicleId } = route.params;
@@ -48,7 +50,11 @@ const VehicleDetailsScreen: React.FC = () => {
       // Load vehicle details
       const vehicleData = await VehicleService.getVehicleById(vehicleId);
       if (!vehicleData) {
-        Alert.alert('Error', 'Vehicle not found');
+        showToast({
+          message: 'Vehicle not found',
+          type: 'error',
+          duration: 3000
+        });
         navigation.goBack();
         return;
       }
@@ -64,7 +70,11 @@ const VehicleDetailsScreen: React.FC = () => {
       setReminders([]);
     } catch (error) {
       console.error('Error loading vehicle data:', error);
-      Alert.alert('Error', 'Failed to load vehicle data. Please try again.');
+      showToast({
+        message: 'Failed to load vehicle data. Please try again.',
+        type: 'error',
+        duration: 3000
+      });
     } finally {
       setLoading(false);
     }
@@ -72,8 +82,18 @@ const VehicleDetailsScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadVehicleData();
-    setRefreshing(false);
+    try {
+      await loadVehicleData();
+      showToast({
+        message: 'Vehicle data refreshed',
+        type: 'info',
+        duration: 1500
+      });
+    } catch (error) {
+      console.error('Error refreshing vehicle data:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleAddMaintenanceRecord = () => {
@@ -99,12 +119,20 @@ const VehicleDetailsScreen: React.FC = () => {
       const mileageValue = parseInt(newMileage);
       
       if (isNaN(mileageValue)) {
-        Alert.alert('Error', 'Please enter a valid number');
+        showToast({
+          message: 'Please enter a valid number',
+          type: 'error',
+          duration: 3000
+        });
         return;
       }
       
       if (mileageValue < vehicle.currentMileage) {
-        Alert.alert('Error', 'New mileage cannot be less than the current mileage');
+        showToast({
+          message: 'New mileage cannot be less than the current mileage',
+          type: 'warning',
+          duration: 3000
+        });
         return;
       }
       
@@ -113,7 +141,11 @@ const VehicleDetailsScreen: React.FC = () => {
       setMileageUpdateModal(false);
       setNewMileage('');
       
-      Alert.alert('Success', 'Mileage updated successfully');
+      showToast({
+        message: 'Mileage updated successfully',
+        type: 'success',
+        duration: 2000
+      });
     } catch (error) {
       console.error('Error updating mileage:', error);
       Alert.alert('Error', 'Failed to update mileage. Please try again.');

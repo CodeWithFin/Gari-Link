@@ -4,11 +4,11 @@ import { CompositeNavigationProp } from '@react-navigation/native';
 
 // Main Tab Navigator
 export type MainTabParamList = {
-  HomeTab: undefined;
-  VehicleTab: undefined;
-  ServicesTab: undefined;
-  CommunityTab: undefined;
-  ProfileTab: undefined;
+  HomeTab: undefined | { screen: keyof HomeStackParamList; params?: any };
+  VehicleTab: undefined | { screen: keyof VehicleStackParamList; params?: any };
+  ServicesTab: undefined | { screen: keyof ServicesStackParamList; params?: any };
+  CommunityTab: undefined | { screen: keyof CommunityStackParamList; params?: any };
+  ProfileTab: undefined | { screen: keyof ProfileStackParamList; params?: any };
 };
 
 // Home Stack Navigator

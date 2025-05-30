@@ -13,12 +13,22 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.garilink.app",
+      "config": {
+        "googleMapsApiKey": "AIzaSyC-hNW9f4sOP_j8mfUHBu2V6z_kXKdYU9c",
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
+      },
+      "package": "com.garilink.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyC-hNW9f4sOP_j8mfUHBu2V6z_kXKdYU9c"
+        }
       },
       "edgeToEdgeEnabled": true
     },

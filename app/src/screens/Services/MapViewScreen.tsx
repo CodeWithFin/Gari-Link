@@ -11,13 +11,37 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Marker, PROVIDER_GOOGLE, Region, Callout } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useTheme } from '../../context/ThemeContext';
 import { ServicesScreenNavigationProp } from '../../types/navigation';
 import { ServiceProvider } from '../../types/models';
 import { ServiceProviderService } from '../../services/ServiceProviderService';
 import Card from '../../components/Card';
+
+// Define Region type
+type Region = {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+};
+
+// Define types for the map components
+type MapViewType = any;
+type MarkerType = any;
+type CalloutType = any;
+
+// Import the map components in a try/catch block to handle potential errors
+let MapView: MapViewType, Marker: MarkerType, Callout: CalloutType;
+try {
+  // Dynamic import to avoid crashes if the module is not available
+  const ReactNativeMaps = require('react-native-maps');
+  MapView = ReactNativeMaps.default;
+  Marker = ReactNativeMaps.Marker;
+  Callout = ReactNativeMaps.Callout;
+} catch (error) {
+  console.warn('Failed to load react-native-maps:', error);
+}
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,7 +56,39 @@ const NAIROBI_REGION: Region = {
 const MapViewScreen: React.FC = () => {
   const { theme } = useTheme();
   const navigation = useNavigation<ServicesScreenNavigationProp>();
-  const mapRef = useRef<MapView>(null);
+  
+  // If MapView is not available, show a fallback UI
+  if (!MapView) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
+          <Text style={[styles.loadingText, { color: theme.colors.text, marginTop: 16 }]}>
+            Maps are not available. Please configure Google Maps API keys.
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.backButton,
+              { 
+                backgroundColor: theme.colors.primary,
+                marginTop: 20,
+                position: 'relative',
+                alignSelf: 'center',
+                width: 'auto',
+                paddingHorizontal: 20
+              }
+            ]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={{ color: '#fff' }}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+  
+  // Use any type for mapRef to avoid TypeScript errors - alternatively, you could create a proper type
+  const mapRef = useRef<any>(null);
   
   const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -125,20 +181,61 @@ const MapViewScreen: React.FC = () => {
     }
   };
 
-  const handleUserLocationPress = () => {
+  // Calculate the current region based on user location or default
+  const currentRegion = userLocation 
+    ? {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      }
+    : region;
+
+  const handleFilterPress = () => {
+    navigation.navigate('FilterServices');
+  };
+
+  // Handle when user presses the "My Location" button
+  const handleUserLocationPress = async () => {
     if (userLocation) {
+      // Animate to the user's location if we already have it
       mapRef.current?.animateToRegion({
-        ...userLocation,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       }, 1000);
     } else {
-      Alert.alert('Location Unavailable', 'Your location is not available.');
+      try {
+        setLocatingUser(true);
+        
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission Denied', 'Location permission is required to show your position on the map.');
+          return;
+        }
+        
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        
+        const { latitude, longitude } = location.coords;
+        setUserLocation({ latitude, longitude });
+        
+        // Animate map to user location
+        mapRef.current?.animateToRegion({
+          latitude,
+          longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }, 1000);
+      } catch (error) {
+        console.error('Error getting user location:', error);
+        Alert.alert('Location Error', 'Could not get your current location.');
+      } finally {
+        setLocatingUser(false);
+      }
     }
-  };
-
-  const handleFilterPress = () => {
-    navigation.navigate('FilterServices');
   };
 
   return (
@@ -155,7 +252,6 @@ const MapViewScreen: React.FC = () => {
           <MapView
             ref={mapRef}
             style={styles.map}
-            provider={PROVIDER_GOOGLE}
             initialRegion={region}
             showsUserLocation
             showsMyLocationButton={false}

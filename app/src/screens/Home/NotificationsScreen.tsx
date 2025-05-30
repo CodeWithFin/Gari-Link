@@ -10,6 +10,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { Notification } from '../../types/models';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateId } from '../../utils/helpers';
@@ -20,6 +21,7 @@ const NOTIFICATIONS_STORAGE_KEY = '@garilink:notifications';
 const NotificationsScreen: React.FC = () => {
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { showToast } = useToast();
   
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,6 +65,14 @@ const NotificationsScreen: React.FC = () => {
 
   const markAsRead = async (notificationId: string) => {
     try {
+      // Get the notification title for the toast message
+      const notification = notifications.find(n => n.id === notificationId);
+      
+      // If already read, no need to do anything
+      if (notification?.read) {
+        return;
+      }
+      
       const updatedNotifications = notifications.map(notification =>
         notification.id === notificationId
           ? { ...notification, read: true }
@@ -87,11 +97,26 @@ const NotificationsScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
+      showToast({
+        message: "Failed to mark notification as read",
+        type: "error",
+        duration: 2000,
+      });
     }
   };
 
   const markAllAsRead = async () => {
     try {
+      const unreadCount = notifications.filter(n => !n.read).length;
+      if (unreadCount === 0) {
+        showToast({
+          message: "No unread notifications to mark as read",
+          type: "info",
+          duration: 2000,
+        });
+        return;
+      }
+      
       const updatedNotifications = notifications.map(notification => ({
         ...notification,
         read: true,
@@ -112,16 +137,42 @@ const NotificationsScreen: React.FC = () => {
           NOTIFICATIONS_STORAGE_KEY,
           JSON.stringify(updated)
         );
+        
+        showToast({
+          message: `Marked ${unreadCount} notification${unreadCount > 1 ? 's' : ''} as read`,
+          type: "success",
+          duration: 2000,
+        });
       }
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
+      showToast({
+        message: "Failed to mark notifications as read",
+        type: "error",
+        duration: 3000,
+      });
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadNotifications();
-    setRefreshing(false);
+    try {
+      await loadNotifications();
+      showToast({
+        message: "Notifications refreshed",
+        type: "info",
+        duration: 1500,
+      });
+    } catch (error) {
+      console.error('Error refreshing notifications:', error);
+      showToast({
+        message: "Failed to refresh notifications",
+        type: "error",
+        duration: 2000,
+      });
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const renderNotificationIcon = (type: string) => {

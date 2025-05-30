@@ -2,11 +2,12 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { ServicesStackParamList } from '../types/navigation';
 import { useTheme } from '../context/ThemeContext';
+import { Platform } from 'react-native';
 
 // Import screens
 import ServicesListScreen from '../screens/Services/ServicesListScreen';
 import ServiceDetailsScreen from '../screens/Services/ServiceDetailsScreen';
-import MapViewScreen from '../screens/Services/MapViewScreen';
+import MapViewScreenUpdated from '../screens/Services/MapViewScreenUpdated';
 import AddReviewScreen from '../screens/Services/AddReviewScreen';
 import FilterServicesScreen from '../screens/Services/FilterServicesScreen';
 
@@ -40,7 +41,7 @@ const ServicesStack: React.FC = () => {
       />
       <Stack.Screen 
         name="MapView" 
-        component={MapViewScreen} 
+        component={MapViewScreenUpdated} 
         options={{ title: 'Map View' }}
       />
       <Stack.Screen 

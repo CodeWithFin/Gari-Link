@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  Dimensions,
+  Platform,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
@@ -39,6 +41,9 @@ interface ListViewProps<T> {
   maxToRenderPerBatch?: number;
   windowSize?: number;
   testID?: string;
+  animationType?: 'fade' | 'slide' | 'scale' | 'none';
+  cardLayout?: boolean;
+  staggered?: boolean;
 }
 
 function ListView<T>({
@@ -63,66 +68,207 @@ function ListView<T>({
   style,
   emptyText = 'No data available',
   initialNumToRender = 10,
-  maxToRenderPerBatch = 5,
+  maxToRenderPerBatch = 10,
   windowSize = 21,
   testID,
-}: ListViewProps<T>): React.ReactElement {
+  animationType = 'fade',
+  cardLayout = false,
+  staggered = false,
+}: ListViewProps<T>) {
   const { theme } = useTheme();
-  const [refreshing, setRefreshing] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef<FlatList>(null);
+  const [mounted, setMounted] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const { width: screenWidth } = Dimensions.get('window');
+
+  // Animation references
+  const itemAnimations = useRef<{ [key: string]: Animated.Value }>({}).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: isLoading ? 0 : 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [isLoading, fadeAnim]);
+    // Set mounted state after a short delay to allow for animation entry
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 100);
 
-  const handleRefresh = async () => {
-    if (onRefresh) {
-      setRefreshing(true);
-      await onRefresh();
-      setRefreshing(false);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Setup item animations when data changes
+  useEffect(() => {
+    if (data && data.length > 0) {
+      // Clear old animations for items no longer in the list
+      Object.keys(itemAnimations).forEach((key) => {
+        if (!data.some((item, index) => keyExtractor(item, index) === key)) {
+          delete itemAnimations[key];
+        }
+      });
+
+      // Create new animations for new items
+      data.forEach((item, index) => {
+        const key = keyExtractor(item, index);
+        if (!itemAnimations[key]) {
+          itemAnimations[key] = new Animated.Value(0);
+
+          // Animate item in with staggered timing if needed
+          if (mounted) {
+            Animated.timing(itemAnimations[key], {
+              toValue: 1,
+              duration: theme.animation.duration.medium,
+              delay: staggered ? index * 50 : 0,
+              useNativeDriver: true,
+            }).start();
+          } else {
+            // If not mounted yet, set the value directly
+            itemAnimations[key].setValue(1);
+          }
+        }
+      });
+    }
+  }, [data, itemAnimations, keyExtractor, mounted, staggered, theme.animation.duration.medium]);
+
+  // Handle item animation based on animation type
+  const getItemAnimation = (key: string) => {
+    const animation = itemAnimations[key] || new Animated.Value(1);
+
+    switch (animationType) {
+      case 'fade':
+        return {
+          opacity: animation,
+        };
+      case 'slide':
+        return {
+          opacity: animation,
+          transform: [
+            {
+              translateY: animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [50, 0],
+              }),
+            },
+          ],
+        };
+      case 'scale':
+        return {
+          opacity: animation,
+          transform: [
+            {
+              scale: animation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.8, 1],
+              }),
+            },
+          ],
+        };
+      default:
+        return {};
     }
   };
 
-  const renderItemWrapper = ({ item, index }: ListRenderItemInfo<T>) => {
-    return <View style={styles.itemWrapper}>{renderItem(item, index)}</View>;
+  // Handle refreshing
+  const handleRefresh = async () => {
+    if (onRefresh) {
+      await onRefresh();
+    }
   };
 
-  const renderSeparator = () => {
-    if (!itemSeparator) return null;
-    return (
-      <View
-        style={[
-          styles.separator,
-          { backgroundColor: theme.colors.border },
-          horizontal ? styles.horizontalSeparator : styles.verticalSeparator,
-        ]}
-      />
-    );
-  };
+  // Memoize the render item function
+  const renderItemMemoized = useMemo(() => {
+    return ({ item, index }: ListRenderItemInfo<T>) => {
+      const key = keyExtractor(item, index);
+      const animatedStyle = animationType !== 'none' ? getItemAnimation(key) : {};
 
+      // If using card layout, wrap in card-like container
+      if (cardLayout) {
+        return (
+          <Animated.View
+            style={[
+              styles.cardItem,
+              {
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.border,
+                marginHorizontal: horizontal ? theme.spacing.s : 0,
+                marginVertical: !horizontal ? theme.spacing.s : 0,
+                width:
+                  numColumns > 1
+                    ? (screenWidth - theme.spacing.m * (numColumns + 1)) / numColumns
+                    : undefined,
+                ...Platform.select({
+                  ios: {
+                    shadowColor: theme.dark ? theme.colors.primary : '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: theme.dark ? 0.3 : 0.1,
+                    shadowRadius: 3,
+                  },
+                  android: {
+                    elevation: theme.elevation.small,
+                  },
+                }),
+              },
+              animatedStyle,
+            ]}
+          >
+            {renderItem(item, index)}
+          </Animated.View>
+        );
+      }
+
+      return (
+        <Animated.View style={animatedStyle}>
+          {renderItem(item, index)}
+          {itemSeparator && index < data.length - 1 && !horizontal && numColumns === 1 && (
+            <View
+              style={[styles.separator, { backgroundColor: theme.colors.border }]}
+            />
+          )}
+        </Animated.View>
+      );
+    };
+  }, [
+    renderItem,
+    keyExtractor,
+    animationType,
+    getItemAnimation,
+    cardLayout,
+    theme,
+    horizontal,
+    numColumns,
+    itemSeparator,
+    data.length,
+    screenWidth,
+  ]);
+
+  // Custom footer that shows loading indicator when loading more
   const renderFooter = () => {
-    if (!isLoadingMore) return ListFooterComponent || null;
-    return (
-      <View style={styles.loadingMoreContainer}>
-        <ActivityIndicator size="small" color={theme.colors.primary} />
-        <Text style={[styles.loadingMoreText, { color: theme.colors.text }]}>
-          Loading more...
-        </Text>
-      </View>
-    );
+    if (isLoadingMore) {
+      return (
+        <View style={styles.loadingMore}>
+          <ActivityIndicator size="small" color={theme.colors.primary} />
+          <Text style={[styles.loadingMoreText, { color: theme.colors.textSecondary }]}>
+            Loading more...
+          </Text>
+        </View>
+      );
+    }
+
+    return ListFooterComponent || null;
   };
 
+  // Empty state component
   const renderEmpty = () => {
-    if (isLoading) return null;
-    if (ListEmptyComponent) return ListEmptyComponent;
+    if (isLoading) {
+      return (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      );
+    }
+
+    if (ListEmptyComponent) {
+      return ListEmptyComponent;
+    }
+
     return (
       <View style={styles.emptyContainer}>
-        <Text style={[styles.emptyText, { color: theme.colors.text }]}>
+        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
           {emptyText}
         </Text>
       </View>
@@ -130,54 +276,50 @@ function ListView<T>({
   };
 
   return (
-    <View style={[styles.container, style]} testID={testID}>
-      {isLoading && !isRefreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading...
-          </Text>
-        </View>
-      ) : (
-        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-          <FlatList
-            ref={flatListRef}
-            data={data}
-            renderItem={renderItemWrapper}
-            keyExtractor={keyExtractor}
-            ListHeaderComponent={ListHeaderComponent}
-            ListFooterComponent={renderFooter()}
-            ListEmptyComponent={renderEmpty()}
-            ItemSeparatorComponent={renderSeparator}
-            onEndReached={onEndReached}
-            onEndReachedThreshold={onEndReachedThreshold}
-            refreshControl={
-              onRefresh ? (
-                <RefreshControl
-                  refreshing={refreshing || isRefreshing}
-                  onRefresh={handleRefresh}
-                  colors={[theme.colors.primary]}
-                  tintColor={theme.colors.primary}
-                />
-              ) : undefined
-            }
-            numColumns={horizontal ? 1 : numColumns}
-            horizontal={horizontal}
-            showsVerticalScrollIndicator={showsVerticalScrollIndicator}
-            showsHorizontalScrollIndicator={showsHorizontalScrollIndicator}
-            contentContainerStyle={[
-              styles.listContent,
-              contentContainerStyle,
-              data.length === 0 && styles.emptyListContent,
-            ]}
-            initialNumToRender={initialNumToRender}
-            maxToRenderPerBatch={maxToRenderPerBatch}
-            windowSize={windowSize}
-            removeClippedSubviews={true}
+    <Animated.FlatList
+      data={data}
+      renderItem={renderItemMemoized}
+      keyExtractor={keyExtractor}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.colors.primary}
+            colors={[theme.colors.primary]}
+            progressBackgroundColor={theme.colors.card}
           />
-        </Animated.View>
+        ) : undefined
+      }
+      onEndReached={onEndReached}
+      onEndReachedThreshold={onEndReachedThreshold}
+      ListHeaderComponent={ListHeaderComponent}
+      ListFooterComponent={renderFooter()}
+      ListEmptyComponent={renderEmpty()}
+      numColumns={numColumns}
+      horizontal={horizontal}
+      showsVerticalScrollIndicator={showsVerticalScrollIndicator}
+      showsHorizontalScrollIndicator={showsHorizontalScrollIndicator}
+      contentContainerStyle={[
+        styles.contentContainer,
+        !data.length && styles.emptyContentContainer,
+        contentContainerStyle,
+      ]}
+      style={[
+        styles.container,
+        { backgroundColor: theme.colors.background },
+        style,
+      ]}
+      initialNumToRender={initialNumToRender}
+      maxToRenderPerBatch={maxToRenderPerBatch}
+      windowSize={windowSize}
+      testID={testID}
+      onScroll={Animated.event(
+        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        { useNativeDriver: false }
       )}
-    </View>
+      scrollEventThrottle={16}
+    />
   );
 }
 
@@ -185,40 +327,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    flex: 1,
-  },
-  itemWrapper: {
-    overflow: 'hidden',
-  },
-  separator: {
-    width: '100%',
-    height: StyleSheet.hairlineWidth,
-  },
-  verticalSeparator: {
-    marginVertical: 8,
-  },
-  horizontalSeparator: {
-    width: StyleSheet.hairlineWidth,
-    height: '100%',
-    marginHorizontal: 8,
-  },
-  listContent: {
-    paddingBottom: 16,
-  },
-  emptyListContent: {
+  contentContainer: {
     flexGrow: 1,
+    padding: 16,
+  },
+  emptyContentContainer: {
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 14,
   },
   emptyContainer: {
     flex: 1,
@@ -230,15 +345,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  loadingMoreContainer: {
-    padding: 10,
+  separator: {
+    height: 1,
+    marginVertical: 8,
+  },
+  loadingMore: {
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    flexDirection: 'row',
+    padding: 16,
   },
   loadingMoreText: {
     marginLeft: 8,
     fontSize: 14,
+  },
+  cardItem: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 0,
   },
 });
 
